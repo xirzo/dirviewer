@@ -1,15 +1,14 @@
 # DirViewer
 
-Program that prints out the directory in formatted way.
+Program that prints out the directory in formatted way. Uses dfs to traverse the directory.
 
 ### Example
 
 ```
-src
- server
- socket
-  udp_server.c
-  socket.c
+test
+├── a
+│   └── b
+└── lol
 ```
 
 ## Build

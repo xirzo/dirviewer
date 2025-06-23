@@ -1,20 +1,13 @@
 #include <unistd.h>
 #include "dv.h"
 
-/* Result I wanna get: */
+/* Result: */
 
 /*
-.
-├── bin
-│   └── main
-├── include
-│   └── GLFW
-│       ├── glfw3.h
-│       └── glfw3native.h
-├── lib
-│   └── libglfw3.a
-└── src
-    └── main.c
+test
+├── a
+│   └── b
+└── lol
 */
 
 int main(int argc, char *argv[]) {

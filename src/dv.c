@@ -6,22 +6,22 @@
 #include <stdlib.h>
 
 void dirview(const char *path) {
-    DirQueueEntry *q = malloc(MAX_QUEUE_SIZE * sizeof(DirQueueEntry));
+    DirStackEntry *stack = malloc(MAX_QUEUE_SIZE * sizeof(DirStackEntry));
 
-    if (!q) {
-        fprintf(stderr, "dirview: failed to allocate memory for queue\n");
+    if (!stack) {
+        fprintf(stderr, "dirview: failed to allocate memory for stack\n");
         return;
     }
 
-    int front = 0;
-    int back = 0;
+    int top = 0;
 
-    q[back] = (DirQueueEntry){
+    stack[top] = (DirStackEntry){
         .depth = 0,
+        .is_last = 1,
     };
 
-    strncpy(q[back].path, path, sizeof(q[back].path) - 1);
-    q[back].path[sizeof(q[back].path) - 1] = '\0';
+    strncpy(stack[top].path, path, sizeof(stack[top].path) - 1);
+    stack[top].path[sizeof(stack[top].path) - 1] = '\0';
 
     const char *filename;
     char       *last_slash = strrchr(path, '/');
@@ -44,24 +44,45 @@ void dirview(const char *path) {
         filename = last_slash + 1;
     }
 
-    back++;
+    strncpy(stack[top].file_name, filename, sizeof(stack[top].file_name) - 1);
+    stack[top].file_name[sizeof(stack[top].file_name) - 1] = '\0';
+    top++;
 
-    printf("%s\n", filename);
+    int has_more_siblings[100] = { 0 };
 
-    while (front < back) {
-        DirQueueEntry *current = &q[front];
-        front++;
+    while (top > 0) {
+        top--;
+        DirStackEntry *current = &stack[top];
 
-        for (int i = 0; i < current->depth; i++) {
-            printf("\t");
-        }
-
-        if (strlen(current->file_name) != 0) {
+        if (current->depth == 0) {
             printf("%s\n", current->file_name);
+        } else {
+            for (int i = 0; i < current->depth - 1; i++) {
+                if (has_more_siblings[i]) {
+                    printf("│   ");
+                } else {
+                    printf("    ");
+                }
+            }
+
+            if (current->is_last) {
+                printf("└── ");
+                has_more_siblings[current->depth - 1] = 0;
+            } else {
+                printf("├── ");
+                has_more_siblings[current->depth - 1] = 1;
+            }
+
+            struct stat sbuf;
+
+            if (stat(current->path, &sbuf) != -1 && S_ISDIR(sbuf.st_mode)) {
+                printf("%s\n", current->file_name);
+            } else {
+                printf("%s\n", current->file_name);
+            }
         }
 
         struct stat sbuf;
-
         if (stat(current->path, &sbuf) == -1) {
             continue;
         }
@@ -71,19 +92,20 @@ void dirview(const char *path) {
         }
 
         Dir *dir = opendirectory(current->path);
-
         if (dir == NULL) {
             continue;
         }
 
-        DirEntry *de;
+        DirStackEntry children[1000];
+        DirEntry     *de;
+        int           child_count = 0;
 
-        while ((de = readdirectory(dir)) != NULL) {
+        while ((de = readdirectory(dir)) != NULL && child_count < 1000) {
             if (strcmp(de->name, ".") == 0 || strcmp(de->name, "..") == 0) {
                 continue;
             }
 
-            DirQueueEntry child = { .depth = current->depth + 1 };
+            DirStackEntry child = { .depth = current->depth + 1 };
 
             size_t dirlen = strlen(current->path);
             int    result;
@@ -120,19 +142,33 @@ void dirview(const char *path) {
                 child.file_name, de->file_name, sizeof(child.file_name) - 1
             );
             child.file_name[sizeof(child.file_name) - 1] = '\0';
-
-            if (back < MAX_QUEUE_SIZE) {
-                q[back++] = child;
-            } else {
-                fprintf(stderr, "dirview: queue is full, stopping bfs\n");
-                closedirectory(dir);
-                free(q);
-                return;
-            }
+            children[child_count++] = child;
         }
 
         closedirectory(dir);
+
+        for (int i = 0; i < child_count - 1; i++) {
+            for (int j = i + 1; j < child_count; j++) {
+                if (strcmp(children[i].file_name, children[j].file_name) > 0) {
+                    DirStackEntry temp = children[i];
+                    children[i] = children[j];
+                    children[j] = temp;
+                }
+            }
+        }
+
+        for (int i = child_count - 1; i >= 0; i--) {
+            children[i].is_last = (i == child_count - 1);
+
+            if (top < MAX_QUEUE_SIZE) {
+                stack[top++] = children[i];
+            } else {
+                fprintf(stderr, "dirview: stack is full, stopping dfs\n");
+                free(stack);
+                return;
+            }
+        }
     }
 
-    free(q);
+    free(stack);
 }
