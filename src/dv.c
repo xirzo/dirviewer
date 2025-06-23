@@ -1,4 +1,5 @@
 #include "dv.h"
+#include <stdint.h>
 #include <sys/stat.h>
 #include <stdio.h>
 #include <errno.h>
@@ -45,6 +46,16 @@ DirEntry* readdirectory(Dir* d) {
         strncpy(d->de.name, entry->d_name, name_len);
         d->de.name[name_len] = '\0';
 
+        char* slash = strrchr(entry->d_name, '/');
+
+        if (slash == NULL) {
+            strncpy(d->de.file_name, entry->d_name, name_len);
+            d->de.file_name[name_len] = '\0';
+        } else {
+            strncpy(d->de.file_name, entry->d_name + *slash, name_len - *slash);
+            d->de.file_name[name_len - *slash] = '\0';
+        }
+
         return &d->de;
     }
 
@@ -60,22 +71,7 @@ void closedirectory(Dir* d) {
     }
 }
 
-void fsize(const char* name) {
-    struct stat sbuf;
-
-    if (stat(name, &sbuf) == -1) {
-        fprintf(stderr, "fsize: cannot access %s: %s\n", name, strerror(errno));
-        return;
-    }
-
-    if (S_ISDIR(sbuf.st_mode)) {
-        dirwalk(name, fsize);
-    }
-
-    printf("%8ld %s\n", (long)sbuf.st_size, name);
-}
-
-void print(const char* name) {
+void print(const char* name, const char* file_name, uint16_t depth) {
     struct stat sbuf;
 
     if (stat(name, &sbuf) == -1) {
@@ -84,13 +80,25 @@ void print(const char* name) {
     }
 
     if (S_ISDIR(sbuf.st_mode)) {
-        dirwalk(name, print);
+        dirwalk(name, print, depth);
     }
 
-    printf("%s\n", name);
+    for (int i = 0; i < depth; i++) {
+        printf("\t");
+    }
+
+    if (file_name == NULL) {
+        return;
+    }
+
+    printf("%s\n", file_name);
 }
 
-void dirwalk(const char* dir, void (*func)(const char*)) {
+void dirwalk(
+    const char* dir,
+    void (*func)(const char*, const char*, uint16_t),
+    uint16_t depth
+) {
     char      name[MAX_NAME];
     DirEntry* de;
     Dir*      d;
@@ -122,8 +130,10 @@ void dirwalk(const char* dir, void (*func)(const char*)) {
             continue;
         }
 
-        (*func)(name);
+        (*func)(name, d->de.file_name, depth + 1);
     }
 
     closedirectory(d);
 }
+
+// TODO: sort

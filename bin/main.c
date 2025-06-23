@@ -19,9 +19,9 @@
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
-        print(".");
+        print(".", NULL, 0);
     } else {
-        while (--argc > 0) { print(*++argv); }
+        while (--argc > 0) { print(*++argv, NULL, 0); }
     }
 
     return 0;

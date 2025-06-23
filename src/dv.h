@@ -3,6 +3,7 @@
 
 #include <dirent.h>
 #include <limits.h>
+#include <stdint.h>
 #include <sys/stat.h>
 
 #ifndef DIRSIZ
@@ -17,6 +18,7 @@
 
 typedef struct {
     char  name[PATH_MAX + 1];
+    char  file_name[PATH_MAX + 1];
     ino_t inode;
 } DirEntry;
 
@@ -30,7 +32,11 @@ DirEntry* readdirectory(Dir* d);
 void      closedirectory(Dir* d);
 
 void fsize(const char* name);
-void print(const char* name);
-void dirwalk(const char* dir, void (*func)(const char*));
+void print(const char* name, const char* file_name, uint16_t depth);
+void dirwalk(
+    const char* dir,
+    void (*func)(const char*, const char*, uint16_t),
+    uint16_t depth
+);
 
 #endif  // !DV_H
