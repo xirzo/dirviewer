@@ -64,7 +64,7 @@ void fsize(const char* name) {
     struct stat sbuf;
 
     if (stat(name, &sbuf) == -1) {
-        fprintf(stderr, "Cannot access %s: %s\n", name, strerror(errno));
+        fprintf(stderr, "fsize: cannot access %s: %s\n", name, strerror(errno));
         return;
     }
 
@@ -73,6 +73,21 @@ void fsize(const char* name) {
     }
 
     printf("%8ld %s\n", (long)sbuf.st_size, name);
+}
+
+void print(const char* name) {
+    struct stat sbuf;
+
+    if (stat(name, &sbuf) == -1) {
+        fprintf(stderr, "print: cannot access %s: %s\n", name, strerror(errno));
+        return;
+    }
+
+    if (S_ISDIR(sbuf.st_mode)) {
+        dirwalk(name, print);
+    }
+
+    printf("%s\n", name);
 }
 
 void dirwalk(const char* dir, void (*func)(const char*)) {
@@ -90,7 +105,14 @@ void dirwalk(const char* dir, void (*func)(const char*)) {
             continue;
         }
 
-        int result = snprintf(name, sizeof(name), "%s/%s", dir, de->name);
+        size_t dirlen = strlen(dir);
+        int    result;
+
+        if (dirlen > 0 && dir[dirlen - 1] == '/') {
+            result = snprintf(name, sizeof(name), "%s%s", dir, de->name);
+        } else {
+            result = snprintf(name, sizeof(name), "%s/%s", dir, de->name);
+        }
 
         if (result >= (int)sizeof(name)) {
             fprintf(

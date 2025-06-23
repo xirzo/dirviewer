@@ -30,6 +30,7 @@ DirEntry* readdirectory(Dir* d);
 void      closedirectory(Dir* d);
 
 void fsize(const char* name);
+void print(const char* name);
 void dirwalk(const char* dir, void (*func)(const char*));
 
 #endif  // !DV_H
