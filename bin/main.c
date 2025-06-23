@@ -19,9 +19,11 @@
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
-        print(".", NULL, 0);
+        dirview(".");
     } else {
-        while (--argc > 0) { print(*++argv, NULL, 0); }
+        while (--argc > 0) {
+            dirview(*++argv);
+        }
     }
 
     return 0;

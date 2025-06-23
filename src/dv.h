@@ -14,6 +14,8 @@
 #define PATH_MAX 4096
 #endif
 
+#define MAX_QUEUE_SIZE 10000
+
 #define MAX_NAME PATH_MAX
 
 typedef struct {
@@ -23,20 +25,20 @@ typedef struct {
 } DirEntry;
 
 typedef struct {
-    DIR*     dirp;
+    char     path[PATH_MAX];
+    char     file_name[NAME_MAX + 1];
+    uint16_t depth;
+} DirQueueEntry;
+
+typedef struct {
+    DIR     *dirp;
     DirEntry de;
 } Dir;
 
-Dir*      opendirectory(const char* dir);
-DirEntry* readdirectory(Dir* d);
-void      closedirectory(Dir* d);
+Dir      *opendirectory(const char *dir);
+DirEntry *readdirectory(Dir *d);
+void      closedirectory(Dir *d);
 
-void fsize(const char* name);
-void print(const char* name, const char* file_name, uint16_t depth);
-void dirwalk(
-    const char* dir,
-    void (*func)(const char*, const char*, uint16_t),
-    uint16_t depth
-);
+void dirview(const char *path);
 
 #endif  // !DV_H

@@ -2,19 +2,18 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include <stdio.h>
-#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 
-Dir* opendirectory(const char* dir) {
-    DIR* dirp;
-    Dir* d;
+Dir *opendirectory(const char *dir) {
+    DIR *dirp;
+    Dir *d;
 
     if ((dirp = opendir(dir)) == NULL) {
         return NULL;
     }
 
-    if ((d = (Dir*)malloc(sizeof(Dir))) == NULL) {
+    if ((d = (Dir *)malloc(sizeof(Dir))) == NULL) {
         closedir(dirp);
         return NULL;
     }
@@ -23,8 +22,8 @@ Dir* opendirectory(const char* dir) {
     return d;
 }
 
-DirEntry* readdirectory(Dir* d) {
-    struct dirent* entry;
+DirEntry *readdirectory(Dir *d) {
+    struct dirent *entry;
 
     if (d == NULL || d->dirp == NULL) {
         return NULL;
@@ -46,7 +45,7 @@ DirEntry* readdirectory(Dir* d) {
         strncpy(d->de.name, entry->d_name, name_len);
         d->de.name[name_len] = '\0';
 
-        char* slash = strrchr(entry->d_name, '/');
+        char *slash = strrchr(entry->d_name, '/');
 
         if (slash == NULL) {
             strncpy(d->de.file_name, entry->d_name, name_len);
@@ -62,7 +61,7 @@ DirEntry* readdirectory(Dir* d) {
     return NULL;
 }
 
-void closedirectory(Dir* d) {
+void closedirectory(Dir *d) {
     if (d) {
         if (d->dirp) {
             closedir(d->dirp);
@@ -71,69 +70,134 @@ void closedirectory(Dir* d) {
     }
 }
 
-void print(const char* name, const char* file_name, uint16_t depth) {
-    struct stat sbuf;
+void dirview(const char *path) {
+    DirQueueEntry *q = malloc(MAX_QUEUE_SIZE * sizeof(DirQueueEntry));
 
-    if (stat(name, &sbuf) == -1) {
-        fprintf(stderr, "print: cannot access %s: %s\n", name, strerror(errno));
+    if (!q) {
+        fprintf(stderr, "dirview: failed to allocate memory for queue\n");
         return;
     }
 
-    if (S_ISDIR(sbuf.st_mode)) {
-        dirwalk(name, print, depth);
+    int front = 0;
+    int back = 0;
+
+    q[back] = (DirQueueEntry){
+        .depth = 0,
+    };
+
+    strncpy(q[back].path, path, sizeof(q[back].path) - 1);
+    q[back].path[sizeof(q[back].path) - 1] = '\0';
+
+    const char *filename;
+    char       *last_slash = strrchr(path, '/');
+
+    if (last_slash == NULL) {
+        filename = path;
+    } else if (*(last_slash + 1) == '\0') {
+        char temp_path[PATH_MAX];
+        strncpy(temp_path, path, sizeof(temp_path) - 1);
+        temp_path[sizeof(temp_path) - 1] = '\0';
+
+        size_t len = strlen(temp_path);
+        if (len > 0 && temp_path[len - 1] == '/') {
+            temp_path[len - 1] = '\0';
+        }
+
+        char *prev_slash = strrchr(temp_path, '/');
+        filename = prev_slash ? prev_slash + 1 : temp_path;
+    } else {
+        filename = last_slash + 1;
     }
 
-    for (int i = 0; i < depth; i++) {
-        printf("\t");
-    }
+    back++;
 
-    if (file_name == NULL) {
-        return;
-    }
+    printf("%s\n", filename);
 
-    printf("%s\n", file_name);
-}
+    while (front < back) {
+        DirQueueEntry *current = &q[front];
+        front++;
 
-void dirwalk(
-    const char* dir,
-    void (*func)(const char*, const char*, uint16_t),
-    uint16_t depth
-) {
-    char      name[MAX_NAME];
-    DirEntry* de;
-    Dir*      d;
+        for (int i = 0; i < current->depth; i++) {
+            printf("\t");
+        }
 
-    if ((d = opendirectory(dir)) == NULL) {
-        fprintf(stderr, "dirwalk: can't open %s: %s\n", dir, strerror(errno));
-        return;
-    }
+        if (strlen(current->file_name) != 0) {
+            printf("%s\n", current->file_name);
+        }
 
-    while ((de = readdirectory(d)) != NULL) {
-        if (strcmp(de->name, ".") == 0 || strcmp(de->name, "..") == 0) {
+        struct stat sbuf;
+
+        if (stat(current->path, &sbuf) == -1) {
             continue;
         }
 
-        size_t dirlen = strlen(dir);
-        int    result;
-
-        if (dirlen > 0 && dir[dirlen - 1] == '/') {
-            result = snprintf(name, sizeof(name), "%s%s", dir, de->name);
-        } else {
-            result = snprintf(name, sizeof(name), "%s/%s", dir, de->name);
+        if (!S_ISDIR(sbuf.st_mode)) {
+            continue;
         }
 
-        if (result >= (int)sizeof(name)) {
-            fprintf(
-                stderr, "dirwalk: path too long \"%s/%s\"\n", dir, de->name
+        Dir *dir = opendirectory(current->path);
+
+        if (dir == NULL) {
+            continue;
+        }
+
+        DirEntry *de;
+
+        while ((de = readdirectory(dir)) != NULL) {
+            if (strcmp(de->name, ".") == 0 || strcmp(de->name, "..") == 0) {
+                continue;
+            }
+
+            DirQueueEntry child = { .depth = current->depth + 1 };
+
+            size_t dirlen = strlen(current->path);
+            int    result;
+
+            if (dirlen > 0 && current->path[dirlen - 1] == '/') {
+                result = snprintf(
+                    child.path,
+                    sizeof(child.path),
+                    "%s%s",
+                    current->path,
+                    de->name
+                );
+            } else {
+                result = snprintf(
+                    child.path,
+                    sizeof(child.path),
+                    "%s/%s",
+                    current->path,
+                    de->name
+                );
+            }
+
+            if (result >= (int)sizeof(child.path)) {
+                fprintf(
+                    stderr,
+                    "dirview: path too long \"%s/%s\"\n",
+                    current->path,
+                    de->name
+                );
+                continue;
+            }
+
+            strncpy(
+                child.file_name, de->file_name, sizeof(child.file_name) - 1
             );
+            child.file_name[sizeof(child.file_name) - 1] = '\0';
 
-            continue;
+            if (back < MAX_QUEUE_SIZE) {
+                q[back++] = child;
+            } else {
+                fprintf(stderr, "dirview: queue is full, stopping bfs\n");
+                closedirectory(dir);
+                free(q);
+                return;
+            }
         }
 
-        (*func)(name, d->de.file_name, depth + 1);
+        closedirectory(dir);
     }
 
-    closedirectory(d);
+    free(q);
 }
-
-// TODO: sort
